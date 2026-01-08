@@ -7,21 +7,24 @@ Fitur:
 ✅ Batch prediction
 ✅ Health check endpoint
 ✅ Model info endpoint
+✅ Static file serving untuk frontend
 ✅ Auto-generated API docs (Swagger)
 
 Install:
-pip install fastapi uvicorn torch transformers pydantic
+pip install fastapi uvicorn torch transformers pydantic pandas
 
 Run:
-uvicorn api:app --reload --host 0.0.0.0 --port 8000
+uvicorn api:app --host 0.0.0.0 --port 7860
 
 Akses Docs:
-http://localhost:8000/docs (Swagger UI)
-http://localhost:8000/redoc (ReDoc)
+http://localhost:7860/docs (Swagger UI)
+http://localhost:7860/redoc (ReDoc)
 """
 
 from fastapi import FastAPI, HTTPException, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from typing import List, Optional
 import torch
@@ -31,6 +34,7 @@ from datetime import datetime
 import pandas as pd
 from io import StringIO
 import logging
+import os
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -56,7 +60,7 @@ app = FastAPI(
 # CORS Middleware (untuk akses dari frontend)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Ganti dengan domain spesifik di production
+    allow_origins=["*"],  # Untuk HF Spaces, allow all origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -151,7 +155,16 @@ async def load_model():
         
         tokenizer = AutoTokenizer.from_pretrained(MODEL_REPO)
         model = AutoModelForSequenceClassification.from_pretrained(MODEL_REPO)
+        
+        # Set to eval mode and move to CPU (HF Spaces biasanya CPU)
         model.eval()
+        
+        # Jika ada GPU, gunakan GPU
+        if torch.cuda.is_available():
+            model = model.cuda()
+            logger.info("✅ Model loaded on GPU")
+        else:
+            logger.info("✅ Model loaded on CPU")
         
         logger.info("✅ Model successfully loaded from HuggingFace Hub")
     
@@ -169,7 +182,7 @@ def predict_spam(text: str) -> tuple:
     Returns: (prediction_code, confidence)
     """
     if tokenizer is None or model is None:
-        raise HTTPException(status_code=500, detail="Model not loaded")
+        raise HTTPException(status_code=503, detail="Model not loaded yet. Please wait...")
     
     cleaned = clean_text(text)
     
@@ -184,6 +197,10 @@ def predict_spam(text: str) -> tuple:
         max_length=128
     )
     
+    # Move to same device as model
+    if torch.cuda.is_available():
+        inputs = {k: v.cuda() for k, v in inputs.items()}
+    
     with torch.no_grad():
         outputs = model(**inputs)
         probs = torch.softmax(outputs.logits, dim=1)
@@ -196,27 +213,72 @@ def predict_spam(text: str) -> tuple:
 # API ENDPOINTS
 # ============================================================================
 
-@app.get("/", tags=["Root"])
-async def root():
-    """Welcome endpoint"""
-    return {
-        "message": "🚨 SMS Spam Detector API - IndoBERT",
-        "version": "1.0.0",
-        "docs": "/docs",
-        "redoc": "/redoc",
-        "endpoints": {
-            "health": "/health",
-            "model_info": "/model/info",
-            "predict": "/predict",
-            "batch_predict": "/predict/batch"
-        }
-    }
+@app.get("/", response_class=HTMLResponse, tags=["Root"])
+async def read_root():
+    """
+    Serve the main HTML page
+    """
+    # Check if index.html exists
+    if os.path.exists("index.html"):
+        return FileResponse("index.html")
+    
+    # Fallback HTML if index.html not found
+    return HTMLResponse(content="""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>SMS Spam Detector API</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                max-width: 800px;
+                margin: 50px auto;
+                padding: 20px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+            }
+            .container {
+                background: rgba(255,255,255,0.1);
+                padding: 30px;
+                border-radius: 15px;
+                backdrop-filter: blur(10px);
+            }
+            h1 { font-size: 2.5em; margin-bottom: 10px; }
+            .links { margin-top: 30px; }
+            .links a {
+                display: inline-block;
+                margin: 10px;
+                padding: 15px 30px;
+                background: white;
+                color: #667eea;
+                text-decoration: none;
+                border-radius: 25px;
+                font-weight: bold;
+            }
+            .links a:hover {
+                background: #f0f0f0;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>🚨 SMS Spam Detector API</h1>
+            <p>API untuk deteksi spam SMS Bahasa Indonesia menggunakan IndoBERT</p>
+            <div class="links">
+                <a href="/docs">📚 API Documentation (Swagger)</a>
+                <a href="/redoc">📖 ReDoc</a>
+                <a href="/health">💚 Health Check</a>
+            </div>
+        </div>
+    </body>
+    </html>
+    """)
 
 @app.get("/health", response_model=HealthCheck, tags=["Health"])
 async def health_check():
     """Check API health dan status model"""
     return HealthCheck(
-        status="healthy" if model is not None else "unhealthy",
+        status="healthy" if model is not None else "loading",
         model_loaded=model is not None,
         timestamp=datetime.now().isoformat()
     )
@@ -225,7 +287,7 @@ async def health_check():
 async def model_info():
     """Informasi tentang model yang digunakan"""
     if model is None:
-        raise HTTPException(status_code=500, detail="Model not loaded")
+        raise HTTPException(status_code=503, detail="Model not loaded yet")
     
     return ModelInfo(
         model_name="IndoBERT Base",
@@ -317,7 +379,6 @@ async def batch_predict(batch: BatchSMSInput):
                 ))
             except Exception as e:
                 logger.error(f"Error processing text: {text[:50]}... - {e}")
-                # Skip jika ada error pada satu text
                 continue
         
         total = len(results)
@@ -352,7 +413,6 @@ async def predict_csv(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="File harus berformat CSV")
     
     try:
-        # Read CSV
         contents = await file.read()
         df = pd.read_csv(StringIO(contents.decode('utf-8')))
         
@@ -362,7 +422,6 @@ async def predict_csv(file: UploadFile = File(...)):
                 detail="CSV harus memiliki kolom 'text'"
             )
         
-        # Predict
         results = []
         for text in df['text']:
             try:
@@ -386,7 +445,7 @@ async def predict_csv(file: UploadFile = File(...)):
         return {
             "message": "Prediction completed",
             "total": len(results_df),
-            "spam_count": (results_df['prediction_code'] == 1).sum(),
+            "spam_count": int((results_df['prediction_code'] == 1).sum()),
             "results": results_df.to_dict(orient='records')
         }
     
@@ -405,7 +464,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "api:app",
         host="0.0.0.0",
-        port=8000,
-        reload=True,
+        port=7860,  # HF Spaces default port
+        reload=False,  # Disable reload in production
         log_level="info"
     )

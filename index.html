@@ -32,15 +32,6 @@
             transform: translateY(-5px);
             box-shadow: 0 20px 40px rgba(0,0,0,0.1);
         }
-        
-        .pulse-animation {
-            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: .5; }
-        }
     </style>
 </head>
 <body class="bg-gray-50">
@@ -58,7 +49,7 @@
                 <a href="#detector" class="bg-white text-purple-600 px-6 py-3 rounded-full font-semibold hover:bg-gray-100 transition">
                     Mulai Deteksi
                 </a>
-                <a href="http://localhost:8000/docs" target="_blank" class="bg-purple-800 text-white px-6 py-3 rounded-full font-semibold hover:bg-purple-900 transition">
+                <a href="/docs" target="_blank" class="bg-purple-800 text-white px-6 py-3 rounded-full font-semibold hover:bg-purple-900 transition">
                     📚 API Docs
                 </a>
             </div>
@@ -205,10 +196,10 @@
             <p class="mb-2">© 2025 SMS Spam Detector Indonesia</p>
             <p class="text-gray-400 text-sm">Powered by IndoBERT & FastAPI</p>
             <div class="mt-4 flex justify-center gap-4">
-                <a href="http://localhost:8000/docs" target="_blank" class="text-gray-400 hover:text-white transition">
+                <a href="/docs" target="_blank" class="text-gray-400 hover:text-white transition">
                     <i class="fas fa-book mr-1"></i>API Docs
                 </a>
-                <a href="http://localhost:8000/redoc" target="_blank" class="text-gray-400 hover:text-white transition">
+                <a href="/redoc" target="_blank" class="text-gray-400 hover:text-white transition">
                     <i class="fas fa-file-alt mr-1"></i>ReDoc
                 </a>
             </div>
@@ -216,8 +207,8 @@
     </footer>
 
     <script>
-        // Configuration
-        const API_URL = 'http://localhost:8000';
+        // Configuration - Menggunakan relative URL untuk Hugging Face Spaces
+        const API_URL = window.location.origin;
         
         // Examples
         const examples = {
@@ -247,19 +238,17 @@
                 statusDiv.classList.remove('hidden');
             } catch (error) {
                 statusDiv.className = 'mb-8 p-4 rounded-lg text-center bg-red-100 text-red-700';
-                statusText.innerHTML = '<i class="fas fa-exclamation-triangle mr-2"></i>Cannot connect to API. Make sure server is running at ' + API_URL;
+                statusText.innerHTML = '<i class="fas fa-exclamation-triangle mr-2"></i>Cannot connect to API: ' + error.message;
                 statusDiv.classList.remove('hidden');
             }
         }
         
         function switchTab(tab) {
-            // Update buttons
             document.getElementById('tab-single').className = 'px-6 py-2 rounded-md font-semibold transition ' + 
                 (tab === 'single' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:text-purple-600');
             document.getElementById('tab-batch').className = 'px-6 py-2 rounded-md font-semibold transition ' + 
                 (tab === 'batch' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:text-purple-600');
             
-            // Update content
             document.getElementById('singleTab').classList.toggle('hidden', tab !== 'single');
             document.getElementById('batchTab').classList.toggle('hidden', tab !== 'batch');
         }
@@ -278,7 +267,6 @@
                 return;
             }
             
-            // Loading state
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Menganalisis...';
             resultDiv.classList.add('hidden');
@@ -290,11 +278,16 @@
                     body: JSON.stringify({ text })
                 });
                 
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
                 const data = await response.json();
                 displayResult(data);
                 
             } catch (error) {
                 alert('Error: ' + error.message);
+                console.error('Detection error:', error);
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fas fa-search mr-2"></i>Deteksi Sekarang';
@@ -404,11 +397,16 @@
                     body: JSON.stringify({ texts })
                 });
                 
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
                 const data = await response.json();
                 displayBatchResults(data);
                 
             } catch (error) {
                 alert('Error: ' + error.message);
+                console.error('Batch detection error:', error);
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fas fa-rocket mr-2"></i>Deteksi Semua';
