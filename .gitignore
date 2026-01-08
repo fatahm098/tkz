@@ -1,0 +1,23 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.safetensors
+*.bin
+.env
+.venv
+venv/
+.env.*
+.DS_Store
+*.safetensors
+*.bin
+*.pt
+*.pth
+models/
+bert_output_final/
+git add .gitignore
+git commit -m "Remove large model files from tracking"
+
+
+# Model cache
+.cache/

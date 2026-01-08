@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMS Spam Detector - IndoBERT API</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(-45deg, #667eea, #764ba2, #f093fb, #4facfe);
+            background-size: 400% 400%;
+            animation: gradient 15s ease infinite;
+        }
+        
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        
+        .card-hover:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        
+        .pulse-animation {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    
+    <!-- Header -->
+    <div class="gradient-bg text-white py-16">
+        <div class="container mx-auto px-4 text-center">
+            <h1 class="text-5xl font-bold mb-4">
+                🚨 SMS Spam Detector Indonesia
+            </h1>
+            <p class="text-xl opacity-90">
+                Deteksi Spam SMS dengan IndoBERT AI - Powered by FastAPI
+            </p>
+            <div class="mt-6 flex justify-center gap-4">
+                <a href="#detector" class="bg-white text-purple-600 px-6 py-3 rounded-full font-semibold hover:bg-gray-100 transition">
+                    Mulai Deteksi
+                </a>
+                <a href="http://localhost:8000/docs" target="_blank" class="bg-purple-800 text-white px-6 py-3 rounded-full font-semibold hover:bg-purple-900 transition">
+                    📚 API Docs
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="container mx-auto px-4 py-12 max-w-6xl">
+        
+        <!-- API Status -->
+        <div id="apiStatus" class="mb-8 p-4 rounded-lg text-center hidden">
+            <i class="fas fa-circle mr-2"></i>
+            <span id="statusText"></span>
+        </div>
+
+        <!-- Tabs -->
+        <div class="flex justify-center mb-8">
+            <div class="inline-flex rounded-lg border border-gray-200 bg-white p-1 shadow">
+                <button onclick="switchTab('single')" id="tab-single" class="px-6 py-2 rounded-md font-semibold transition bg-purple-600 text-white">
+                    <i class="fas fa-message mr-2"></i>Single Detection
+                </button>
+                <button onclick="switchTab('batch')" id="tab-batch" class="px-6 py-2 rounded-md font-semibold transition text-gray-600 hover:text-purple-600">
+                    <i class="fas fa-list mr-2"></i>Batch Detection
+                </button>
+            </div>
+        </div>
+
+        <!-- Single Detection -->
+        <div id="singleTab" class="tab-content">
+            <div class="bg-white rounded-2xl shadow-lg p-8 card-hover">
+                <h2 class="text-2xl font-bold mb-6 text-gray-800">
+                    <i class="fas fa-search text-purple-600 mr-2"></i>
+                    Deteksi Single SMS
+                </h2>
+                
+                <!-- Example Buttons -->
+                <div class="mb-4 flex flex-wrap gap-2">
+                    <button onclick="loadExample('normal')" class="px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition text-sm">
+                        📝 Contoh Normal
+                    </button>
+                    <button onclick="loadExample('fraud')" class="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition text-sm">
+                        🚨 Contoh Fraud
+                    </button>
+                    <button onclick="loadExample('promo')" class="px-4 py-2 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition text-sm">
+                        🎁 Contoh Promo
+                    </button>
+                </div>
+                
+                <!-- Input -->
+                <textarea 
+                    id="smsInput" 
+                    class="w-full p-4 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none transition"
+                    rows="5"
+                    placeholder="Masukkan teks SMS yang ingin dideteksi...&#10;&#10;Contoh: SELAMAT! Anda menang hadiah 10 juta rupiah. Klik link berikut untuk klaim..."
+                ></textarea>
+                
+                <div class="mt-4 flex gap-4">
+                    <button 
+                        onclick="detectSMS()" 
+                        id="detectBtn"
+                        class="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition disabled:opacity-50"
+                    >
+                        <i class="fas fa-search mr-2"></i>
+                        Deteksi Sekarang
+                    </button>
+                    <button 
+                        onclick="clearResult()" 
+                        class="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition"
+                    >
+                        <i class="fas fa-trash mr-2"></i>
+                        Clear
+                    </button>
+                </div>
+            </div>
+
+            <!-- Result -->
+            <div id="result" class="mt-8 hidden">
+                <!-- Will be populated by JavaScript -->
+            </div>
+        </div>
+
+        <!-- Batch Detection -->
+        <div id="batchTab" class="tab-content hidden">
+            <div class="bg-white rounded-2xl shadow-lg p-8 card-hover">
+                <h2 class="text-2xl font-bold mb-6 text-gray-800">
+                    <i class="fas fa-list-check text-purple-600 mr-2"></i>
+                    Deteksi Multiple SMS
+                </h2>
+                
+                <div id="batchInputs">
+                    <div class="batch-input-group mb-4">
+                        <label class="block text-gray-700 font-semibold mb-2">SMS #1</label>
+                        <textarea class="batch-textarea w-full p-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none" rows="2" placeholder="Masukkan SMS pertama..."></textarea>
+                    </div>
+                    <div class="batch-input-group mb-4">
+                        <label class="block text-gray-700 font-semibold mb-2">SMS #2</label>
+                        <textarea class="batch-textarea w-full p-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none" rows="2" placeholder="Masukkan SMS kedua..."></textarea>
+                    </div>
+                    <div class="batch-input-group mb-4">
+                        <label class="block text-gray-700 font-semibold mb-2">SMS #3</label>
+                        <textarea class="batch-textarea w-full p-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none" rows="2" placeholder="Masukkan SMS ketiga..."></textarea>
+                    </div>
+                </div>
+                
+                <div class="flex gap-4 mb-6">
+                    <button onclick="addBatchInput()" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition">
+                        <i class="fas fa-plus mr-2"></i>Tambah SMS
+                    </button>
+                    <button onclick="detectBatch()" id="batchDetectBtn" class="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition">
+                        <i class="fas fa-rocket mr-2"></i>Deteksi Semua
+                    </button>
+                </div>
+            </div>
+
+            <!-- Batch Results -->
+            <div id="batchResults" class="mt-8 hidden">
+                <!-- Will be populated by JavaScript -->
+            </div>
+        </div>
+
+        <!-- Features Section -->
+        <div class="mt-16 grid md:grid-cols-3 gap-6">
+            <div class="bg-white p-6 rounded-xl shadow-md text-center card-hover">
+                <div class="text-4xl mb-4">⚡</div>
+                <h3 class="text-xl font-bold mb-2">Real-time Detection</h3>
+                <p class="text-gray-600">Deteksi spam secara instant dengan AI IndoBERT</p>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-md text-center card-hover">
+                <div class="text-4xl mb-4">🎯</div>
+                <h3 class="text-xl font-bold mb-2">High Accuracy</h3>
+                <p class="text-gray-600">Akurasi tinggi untuk Bahasa Indonesia</p>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-md text-center card-hover">
+                <div class="text-4xl mb-4">🔒</div>
+                <h3 class="text-xl font-bold mb-2">Privacy First</h3>
+                <p class="text-gray-600">Data tidak disimpan, 100% aman</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-white py-8 mt-16">
+        <div class="container mx-auto px-4 text-center">
+            <p class="mb-2">© 2025 SMS Spam Detector Indonesia</p>
+            <p class="text-gray-400 text-sm">Powered by IndoBERT & FastAPI</p>
+            <div class="mt-4 flex justify-center gap-4">
+                <a href="http://localhost:8000/docs" target="_blank" class="text-gray-400 hover:text-white transition">
+                    <i class="fas fa-book mr-1"></i>API Docs
+                </a>
+                <a href="http://localhost:8000/redoc" target="_blank" class="text-gray-400 hover:text-white transition">
+                    <i class="fas fa-file-alt mr-1"></i>ReDoc
+                </a>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Configuration
+        const API_URL = 'http://localhost:8000';
+        
+        // Examples
+        const examples = {
+            normal: 'Rapat hari ini jam 2 siang di ruang meeting lantai 3. Jangan lupa bawa laptop dan materi presentasi.',
+            fraud: 'URGENT! Rekening anda diblokir karena aktivitas mencurigakan. Segera hubungi 08123456789 untuk verifikasi atau akun akan ditutup permanen.',
+            promo: 'PROMO GAJIAN! Dapatkan cashback 50% untuk semua produk hari ini saja! Klik link berikut: bit.ly/promo123. Buruan sebelum kehabisan!'
+        };
+        
+        // Check API Status on load
+        checkAPIStatus();
+        
+        async function checkAPIStatus() {
+            const statusDiv = document.getElementById('apiStatus');
+            const statusText = document.getElementById('statusText');
+            
+            try {
+                const response = await fetch(`${API_URL}/health`);
+                const data = await response.json();
+                
+                if (data.status === 'healthy') {
+                    statusDiv.className = 'mb-8 p-4 rounded-lg text-center bg-green-100 text-green-700';
+                    statusText.innerHTML = '<i class="fas fa-check-circle mr-2"></i>API Connected - Model Ready';
+                } else {
+                    statusDiv.className = 'mb-8 p-4 rounded-lg text-center bg-red-100 text-red-700';
+                    statusText.innerHTML = '<i class="fas fa-times-circle mr-2"></i>API Connected - Model Not Ready';
+                }
+                statusDiv.classList.remove('hidden');
+            } catch (error) {
+                statusDiv.className = 'mb-8 p-4 rounded-lg text-center bg-red-100 text-red-700';
+                statusText.innerHTML = '<i class="fas fa-exclamation-triangle mr-2"></i>Cannot connect to API. Make sure server is running at ' + API_URL;
+                statusDiv.classList.remove('hidden');
+            }
+        }
+        
+        function switchTab(tab) {
+            // Update buttons
+            document.getElementById('tab-single').className = 'px-6 py-2 rounded-md font-semibold transition ' + 
+                (tab === 'single' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:text-purple-600');
+            document.getElementById('tab-batch').className = 'px-6 py-2 rounded-md font-semibold transition ' + 
+                (tab === 'batch' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:text-purple-600');
+            
+            // Update content
+            document.getElementById('singleTab').classList.toggle('hidden', tab !== 'single');
+            document.getElementById('batchTab').classList.toggle('hidden', tab !== 'batch');
+        }
+        
+        function loadExample(type) {
+            document.getElementById('smsInput').value = examples[type];
+        }
+        
+        async function detectSMS() {
+            const text = document.getElementById('smsInput').value.trim();
+            const btn = document.getElementById('detectBtn');
+            const resultDiv = document.getElementById('result');
+            
+            if (!text) {
+                alert('Masukkan teks SMS terlebih dahulu!');
+                return;
+            }
+            
+            // Loading state
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Menganalisis...';
+            resultDiv.classList.add('hidden');
+            
+            try {
+                const response = await fetch(`${API_URL}/predict`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text })
+                });
+                
+                const data = await response.json();
+                displayResult(data);
+                
+            } catch (error) {
+                alert('Error: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-search mr-2"></i>Deteksi Sekarang';
+            }
+        }
+        
+        function displayResult(data) {
+            const resultDiv = document.getElementById('result');
+            const isSpam = data.prediction === 'SPAM';
+            
+            resultDiv.innerHTML = `
+                <div class="bg-white rounded-2xl shadow-lg p-8 card-hover">
+                    <div class="text-center mb-6">
+                        <div class="inline-block px-8 py-4 rounded-full text-2xl font-bold ${isSpam ? 'bg-red-500 text-white' : 'bg-green-500 text-white'}">
+                            ${isSpam ? '🚨 SPAM (BERBAHAYA)' : '✅ NON-SPAM (AMAN)'}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-6">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="font-semibold text-gray-700">Confidence Score:</span>
+                            <span class="text-2xl font-bold text-purple-600">${data.confidence_percentage}</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                            <div class="h-full ${isSpam ? 'bg-red-500' : 'bg-green-500'} transition-all duration-500" style="width: ${data.confidence_percentage}"></div>
+                        </div>
+                    </div>
+                    
+                    ${data.warning ? `
+                    <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 mb-6 rounded">
+                        <p class="font-bold text-yellow-800 mb-2">⚠️ Peringatan Keamanan:</p>
+                        <p class="text-yellow-700 mb-3">${data.warning}</p>
+                        <ul class="text-sm text-yellow-700 space-y-1">
+                            <li>❌ Jangan klik link/tautan apapun</li>
+                            <li>❌ Jangan berikan informasi pribadi (PIN, password, OTP)</li>
+                            <li>❌ Jangan transfer uang</li>
+                            <li>✅ Laporkan sebagai spam & blokir nomor</li>
+                        </ul>
+                    </div>
+                    ` : `
+                    <div class="bg-green-50 border-l-4 border-green-500 p-4 mb-6 rounded">
+                        <p class="font-bold text-green-800 mb-2">✅ Pesan Aman</p>
+                        <p class="text-green-700">Tidak ada indikasi penipuan atau spam pada pesan ini.</p>
+                    </div>
+                    `}
+                    
+                    <div class="grid grid-cols-2 gap-4 text-sm mb-4">
+                        <div class="bg-gray-50 p-3 rounded">
+                            <span class="text-gray-600">Text Length:</span>
+                            <span class="float-right font-semibold">${data.text.length} chars</span>
+                        </div>
+                        <div class="bg-gray-50 p-3 rounded">
+                            <span class="text-gray-600">Timestamp:</span>
+                            <span class="float-right font-semibold">${new Date(data.timestamp).toLocaleTimeString('id-ID')}</span>
+                        </div>
+                    </div>
+                    
+                    <details class="bg-gray-50 p-4 rounded cursor-pointer">
+                        <summary class="font-semibold text-gray-700">🔍 Lihat Teks yang Diproses</summary>
+                        <pre class="mt-2 text-sm text-gray-600 whitespace-pre-wrap">${data.cleaned_text}</pre>
+                    </details>
+                </div>
+            `;
+            
+            resultDiv.classList.remove('hidden');
+            resultDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        
+        function clearResult() {
+            document.getElementById('smsInput').value = '';
+            document.getElementById('result').classList.add('hidden');
+        }
+        
+        let batchInputCount = 3;
+        
+        function addBatchInput() {
+            batchInputCount++;
+            const container = document.getElementById('batchInputs');
+            const newInput = document.createElement('div');
+            newInput.className = 'batch-input-group mb-4';
+            newInput.innerHTML = `
+                <label class="block text-gray-700 font-semibold mb-2">SMS #${batchInputCount}</label>
+                <textarea class="batch-textarea w-full p-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none" rows="2" placeholder="Masukkan SMS..."></textarea>
+            `;
+            container.appendChild(newInput);
+        }
+        
+        async function detectBatch() {
+            const textareas = document.querySelectorAll('.batch-textarea');
+            const texts = Array.from(textareas)
+                .map(ta => ta.value.trim())
+                .filter(t => t.length > 0);
+            
+            if (texts.length === 0) {
+                alert('Masukkan minimal 1 SMS!');
+                return;
+            }
+            
+            const btn = document.getElementById('batchDetectBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Processing...';
+            
+            try {
+                const response = await fetch(`${API_URL}/predict/batch`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ texts })
+                });
+                
+                const data = await response.json();
+                displayBatchResults(data);
+                
+            } catch (error) {
+                alert('Error: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-rocket mr-2"></i>Deteksi Semua';
+            }
+        }
+        
+        function displayBatchResults(data) {
+            const resultsDiv = document.getElementById('batchResults');
+            
+            let html = `
+                <div class="bg-white rounded-2xl shadow-lg p-8 card-hover">
+                    <h3 class="text-2xl font-bold mb-6">📊 Hasil Batch Detection</h3>
+                    
+                    <div class="grid grid-cols-4 gap-4 mb-8">
+                        <div class="bg-blue-100 p-4 rounded-lg text-center">
+                            <div class="text-3xl font-bold text-blue-700">${data.total}</div>
+                            <div class="text-sm text-gray-600">Total SMS</div>
+                        </div>
+                        <div class="bg-red-100 p-4 rounded-lg text-center">
+                            <div class="text-3xl font-bold text-red-700">${data.spam_count}</div>
+                            <div class="text-sm text-gray-600">SPAM</div>
+                        </div>
+                        <div class="bg-green-100 p-4 rounded-lg text-center">
+                            <div class="text-3xl font-bold text-green-700">${data.non_spam_count}</div>
+                            <div class="text-sm text-gray-600">Non-Spam</div>
+                        </div>
+                        <div class="bg-yellow-100 p-4 rounded-lg text-center">
+                            <div class="text-3xl font-bold text-yellow-700">${data.spam_rate.toFixed(1)}%</div>
+                            <div class="text-sm text-gray-600">Spam Rate</div>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-4">
+            `;
+            
+            data.results.forEach((result, index) => {
+                const isSpam = result.prediction === 'SPAM';
+                html += `
+                    <div class="p-4 rounded-lg border-l-4 ${isSpam ? 'bg-red-50 border-red-500' : 'bg-green-50 border-green-500'}">
+                        <div class="flex justify-between items-start">
+                            <div class="flex-1 pr-4">
+                                <span class="text-gray-600 text-sm">#${index + 1}</span>
+                                <p class="text-gray-800 mt-1">${result.text.substring(0, 100)}${result.text.length > 100 ? '...' : ''}</p>
+                            </div>
+                            <div class="text-right">
+                                <span class="inline-block px-3 py-1 rounded-full text-sm font-bold ${isSpam ? 'bg-red-500 text-white' : 'bg-green-500 text-white'}">
+                                    ${result.prediction}
+                                </span>
+                                <p class="text-sm text-gray-600 mt-1">${result.confidence_percentage}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += `
+                    </div>
+                </div>
+            `;
+            
+            resultsDiv.innerHTML = html;
+            resultsDiv.classList.remove('hidden');
+            resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    </script>
+</body>
+</html>
